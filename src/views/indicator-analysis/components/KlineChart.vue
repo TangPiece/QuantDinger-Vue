@@ -35,6 +35,14 @@
           >
             {{ indicator.shortName }}
           </div>
+          <div
+            class="indicator-btn"
+            :class="{ active: factorChartActive }"
+            :title="$t('factorLibrary.plotOnChart')"
+            @click="$emit('open-factor-library')"
+          >
+            {{ $t('factorLibrary.chartButton') }}
+          </div>
         </div>
         <div v-if="showIndicatorToolbar && activePresetIndicators.length" class="indicator-active-bar">
           <div
@@ -43,7 +51,10 @@
             class="indicator-active-chip"
             :class="{ 'indicator-active-chip--hidden': indicator.visible === false }"
           >
-            <span class="indicator-active-chip__label" @click="openIndicatorEditor(indicator)">
+            <span
+              class="indicator-active-chip__label"
+              @click="indicator.factorChart ? null : openIndicatorEditor(indicator)"
+            >
               {{ formatIndicatorInstanceLabel(indicator) }}
             </span>
             <a-tooltip :title="indicator.visible === false ? $t('indicatorIde.editor.showIndicator') : $t('indicatorIde.editor.hideIndicator')">
@@ -53,7 +64,7 @@
                 @click.stop="toggleIndicatorVisibility(indicator)"
               />
             </a-tooltip>
-            <a-tooltip :title="$t('indicatorIde.editor.settings')">
+            <a-tooltip v-if="!indicator.factorChart" :title="$t('indicatorIde.editor.settings')">
               <a-icon
                 type="setting"
                 class="indicator-active-chip__action"
@@ -253,7 +264,7 @@ export default {
       default: null
     }
   },
-  emits: ['retry', 'price-change', 'load', 'indicator-toggle', 'indicators-updated'],
+  emits: ['retry', 'price-change', 'load', 'indicator-toggle', 'indicators-updated', 'open-factor-library'],
   setup (props, { emit }) {
     const klineData = shallowRef([])
     const loading = ref(false)
@@ -415,7 +426,8 @@ export default {
         '1H': 30000,
         '4H': 45000,
         '1D': 60000,
-        '1W': 60000
+        '1W': 60000,
+        '1M': 60000
       }
       const marketDataMap = {
         '1m': 15000,
@@ -426,7 +438,8 @@ export default {
         '1H': 60000,
         '4H': 60000,
         '1D': 60000,
-        '1W': 60000
+        '1W': 60000,
+        '1M': 60000
       }
       const map = isCryptoMarket() ? cryptoMap : marketDataMap
       return map[tf] || (isCryptoMarket() ? 30000 : 60000)
@@ -441,7 +454,9 @@ export default {
       '1H': 60 * 60 * 1000,
       '4H': 4 * 60 * 60 * 1000,
       '1D': 24 * 60 * 60 * 1000,
-      '1W': 7 * 24 * 60 * 60 * 1000
+      '1W': 7 * 24 * 60 * 60 * 1000,
+      // 仅作缺省间隔；月线对齐走日历月，不用这个固定毫秒去切桶。
+      '1M': 30 * 24 * 60 * 60 * 1000
     }
 
     const getTimeframeMs = (tf = props.timeframe) => TIMEFRAME_MS[String(tf || '1H')] || 0
@@ -474,6 +489,10 @@ export default {
         const daysFromMonday = (utcDay + 6) % 7
         return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - daysFromMonday * TIMEFRAME_MS['1D']
       }
+      if (key === '1M') {
+        const d = new Date(ts)
+        return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)
+      }
       return Math.floor(ts / interval) * interval
     }
 
@@ -482,6 +501,8 @@ export default {
       if (!incoming) return base
       return {
         timestamp,
+        // 合并同日 K 线时留下交易所原始时间，供因子按交易日对齐。
+        sourceTime: base.sourceTime != null ? base.sourceTime : incoming.sourceTime,
         open: Number.isFinite(Number(base.open)) ? Number(base.open) : Number(incoming.open),
         high: Math.max(Number(base.high), Number(incoming.high)),
         low: Math.min(Number(base.low), Number(incoming.low)),
@@ -797,7 +818,16 @@ export default {
     }
 
     const activePresetIndicators = computed(() => {
-      return (props.activeIndicators || []).filter(item => item && item.id && item.id !== 'selected-python-indicator' && item.type !== 'python')
+      return (props.activeIndicators || []).filter(item => {
+        if (!item || !item.id) return false
+        // 因子副图走 python plots，但仍用现有芯片来显隐和删除。
+        if (item.factorChart) return true
+        return item.id !== 'selected-python-indicator' && item.type !== 'python'
+      })
+    })
+
+    const factorChartActive = computed(() => {
+      return (props.activeIndicators || []).some(item => item && item.factorChart)
     })
 
     const indicatorEditorVisible = ref(false)
@@ -2177,9 +2207,12 @@ registerOverlay({
 
     const formatKlineData = (data) => {
       const bars = data.map(item => {
-        const timeValue = alignKlineTimestampMs(item.time || item.timestamp)
+        const rawTime = item.sourceTime != null ? item.sourceTime : (item.time || item.timestamp)
+        const timeValue = alignKlineTimestampMs(rawTime)
         return {
           timestamp: timeValue,
+          // 日线画图用 UTC 日界。因子对齐必须留原始时间，否则上海交易日会错一天。
+          sourceTime: rawTime,
           open: parseFloat(item.open),
           high: parseFloat(item.high),
           low: parseFloat(item.low),
@@ -2263,6 +2296,7 @@ registerOverlay({
     const convertToInternalFormat = (data) => {
       return data.map(item => ({
         time: Math.floor(item.timestamp / 1000),
+        sourceTime: item.sourceTime,
         open: item.open,
         high: item.high,
         low: item.low,
@@ -2319,6 +2353,9 @@ registerOverlay({
           const week2 = Math.floor((date2.getTime() - new Date(date2.getFullYear(), 0, 1).getTime()) / (7 * 24 * 60 * 60 * 1000))
           return date1.getFullYear() === date2.getFullYear() && week1 === week2
         }
+        case '1M':
+          return date1.getFullYear() === date2.getFullYear() &&
+                 date1.getMonth() === date2.getMonth()
         default:
           return time1 === time2
       }
@@ -2813,6 +2850,7 @@ registerOverlay({
 
       const normalizedBar = {
         timestamp: normalizedTimestamp,
+        sourceTime: bar.timestamp,
         open: Number(bar.open),
         high: Number(bar.high),
         low: Number(bar.low),
@@ -4314,7 +4352,7 @@ registerOverlay({
           if (indicator && indicator.visible === false) {
             continue
           }
-          if (indicator.type === 'python') {
+            if (indicator.type === 'python') {
             if (!indicator.code) continue
 
             try {
@@ -5240,6 +5278,7 @@ registerOverlay({
       indicatorButtons,
       volumeVisible,
       activePresetIndicators,
+      factorChartActive,
       handleIndicatorButtonClick,
       isIndicatorActive,
       toggleIndicator,

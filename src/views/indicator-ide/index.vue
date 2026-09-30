@@ -436,6 +436,7 @@
                         <a-radio-button value="4H">4H</a-radio-button>
                         <a-radio-button value="1D">1D</a-radio-button>
                         <a-radio-button value="1W">1W</a-radio-button>
+                        <a-radio-button value="1M">1M</a-radio-button>
                       </a-radio-group>
                     </div>
                     <div class="ide-toolbar-group ide-toolbar-group--indicator">
@@ -501,9 +502,17 @@
                     :userId="userId"
                     :realtime-enabled="klineRealtimeEnabled"
                     @indicator-toggle="handleIndicatorToggle"
+                    @open-factor-library="factorLibraryVisible = true"
                   />
                 </div>
               </div>
+              <factor-library-modal
+                :visible="factorLibraryVisible"
+                :is-dark="chartTheme === 'dark'"
+                :show-plot="true"
+                @close="factorLibraryVisible = false"
+                @plot="plotFactorOnChart"
+              />
               <div
                 class="ide-quick-bottom ide-quick-bottom--chart-fs"
                 :class="{ 'ide-quick-bottom--collapsed': !quickTradeDrawerVisible }"
@@ -1104,10 +1113,12 @@ import { CRYPTO_EXCHANGE_IDS, marketContextKey, normalizeExchangeId, normalizeMa
 import { getUserInfo } from '@/api/login'
 import { getNotificationSettings } from '@/api/user'
 import { getWatchlist, addWatchlist, searchSymbols } from '@/api/market'
+import { getFactorSeries } from '@/api/factor'
 import { getPublicSettingsConfig } from '@/api/settings'
 import { extractIndicatorSignalLabels } from '@/utils/indicatorSignalOptions'
 import { renderSafeMarkdown } from '@/utils/safeMarkdown'
 import KlineChart from '@/views/indicator-analysis/components/KlineChart.vue'
+import FactorLibraryModal from '@/views/strategy-ide/FactorLibraryModal.vue'
 import QuickTradePanel from '@/components/QuickTradePanel/QuickTradePanel'
 import { Modal } from 'ant-design-vue'
 import message from 'ant-design-vue/es/message'
@@ -1120,7 +1131,8 @@ const TF_MAX_DAYS = {
   '1H': 730,
   '4H': 1460,
   '1D': 3650,
-  '1W': 7300
+  '1W': 7300,
+  '1M': 7300
 }
 
 function ideUiCacheStorageKey (userId) {
@@ -1146,7 +1158,7 @@ function indicatorParamDefaultsStorageKey (userId) {
 export default {
   name: 'IndicatorIDE',
   mixins: [baseMixin],
-  components: { KlineChart, QuickTradePanel },
+  components: { KlineChart, QuickTradePanel, FactorLibraryModal },
   data () {
     return {
       userId: null,
@@ -1178,6 +1190,7 @@ export default {
       selectedWatchlistKey: 'Crypto:BTC/USDT',
 
       activeIndicators: [],
+      factorLibraryVisible: false,
       chartIndicatorRunning: true,
       quickTradeDrawerVisible: true,
       quickTradeAiDecisionFilter: false,
@@ -1201,7 +1214,7 @@ export default {
         webhookToken: '',
         webhookSigningSecret: ''
       },
-      signalAlertTimeframes: ['1m', '5m', '15m', '30m', '1H', '4H', '1D', '1W'],
+      signalAlertTimeframes: ['1m', '5m', '15m', '30m', '1H', '4H', '1D', '1W', '1M'],
       signalAlertForm: {
         watchlistKey: 'Crypto:BTC/USDT',
         market: 'Crypto',
@@ -2431,7 +2444,7 @@ export default {
       return codeName || ind.name || (ind.id ? `Indicator #${ind.id}` : 'New Indicator')
     },
     isIdePythonActiveItem (item) {
-      if (!item) return false
+      if (!item || item.factorChart) return false
       if (item.type === 'python') return true
       if (item.id === 'selected-python-indicator') return true
       if (String(item.id || '').startsWith('ide-py-')) return true
@@ -2633,13 +2646,103 @@ export default {
             style: indicator.style && typeof indicator.style === 'object'
               ? { color: indicator.style.color || '', lineWidth: Number(indicator.style.lineWidth || 2) }
               : (item.style || { color: '', lineWidth: 2 }),
-            calculate: null
+            calculate: item.factorChart ? item.calculate : null
           }
         })
       } else if (action === 'remove') {
         this.activeIndicators = this.activeIndicators.filter(item => (item.instanceId || item.id) !== targetInstanceId)
       }
       this.syncSelectedIndicatorToChart()
+    },
+    factorDisplayName (factor) {
+      const key = factor && factor.name_i18n_key
+      if (!key) return (factor && factor.factor_id) || ''
+      const translated = this.$t(key)
+      return translated && translated !== key ? translated : factor.factor_id
+    },
+    localizedNotice (key) {
+      if (!key) return ''
+      const translated = this.$t(key)
+      return translated && translated !== key ? translated : ''
+    },
+    // 图例用当前语言的名称。plot.name 仍是因子代码，避免中文被图例内部键名滤掉。
+    plotsWithLocalizedTitle (plots, title) {
+      return (Array.isArray(plots) ? plots : []).map(plot => ({
+        ...plot,
+        title
+      }))
+    },
+    refreshFactorChartLanguage () {
+      const current = this.activeIndicators.find(item => item && item.factorChart && item.factorSource)
+      if (!current) return
+      const label = this.factorDisplayName(current.factorSource)
+      this.activeIndicators = this.activeIndicators.map(item => {
+        if (!item || !item.factorChart) return item
+        return { ...item, name: label, shortName: label }
+      })
+    },
+    plotFactorOnChart (factor) {
+      // 同一时间只留一条因子副图。计算走后端序列，画线仍用指标 plots。
+      if (!factor || !factor.factor_id) return
+      this.factorLibraryVisible = false
+      const market = this.market
+      const symbol = this.symbol
+      const timeframe = this.timeframe
+      const params = factor.params && typeof factor.params === 'object' ? { ...factor.params } : {}
+      let notified = false
+      const indicator = {
+        id: 'factor-chart',
+        instanceId: 'factor-chart',
+        type: 'python',
+        factorChart: true,
+        factorSource: factor,
+        name: this.factorDisplayName(factor),
+        shortName: this.factorDisplayName(factor),
+        code: factor.factor_id,
+        visible: true,
+        params,
+        style: { color: '#22D3EE', lineWidth: 2 },
+        calculate: async (klineData) => {
+          const label = this.factorDisplayName(factor)
+          const bars = (Array.isArray(klineData) ? klineData : []).map(item => ({
+            // 对齐后的 timestamp 是 UTC 日界。Level2 要用交易所原始时间才能对上交易日。
+            time: item.sourceTime != null ? item.sourceTime : (item.timestamp || item.time),
+            open: item.open,
+            high: item.high,
+            low: item.low,
+            close: item.close,
+            volume: item.volume
+          }))
+          try {
+            const res = await getFactorSeries({
+              factor_id: factor.factor_id,
+              market,
+              symbol,
+              timeframe,
+              params,
+              bars
+            })
+            if (!(res && res.code === 1 && res.data)) {
+              throw new Error((res && res.msg) || '')
+            }
+            const notice = this.localizedNotice(res.data.notice_key)
+            if (notice && !notified) {
+              notified = true
+              this.$message.info(notice)
+            }
+            return {
+              name: label,
+              plots: this.plotsWithLocalizedTitle(res.data.plots, label),
+              signals: []
+            }
+          } catch (error) {
+            this.$message.error(error.backendMessage || error.message || this.$t('factorLibrary.plotFailed'))
+            return { name: label, plots: [], signals: [] }
+          }
+        }
+      }
+      const rest = this.activeIndicators.filter(item => !item.factorChart && item.id !== 'factor-chart')
+      this.activeIndicators = [...rest, indicator]
     },
 
     // ===== Save =====
@@ -3936,6 +4039,7 @@ export default {
       if (this.cmInstance) this.cmInstance.setOption('theme', this.isDarkTheme ? 'monokai' : 'eclipse')
     },
     '$i18n.locale' () {
+      this.refreshFactorChartLanguage()
       this.$nextTick(() => {
         this.ensureChartReady()
       })
@@ -5992,12 +6096,12 @@ body.dark .ide-signal-alert-modal-wrap {
       min-height: 62px;
       box-sizing: border-box;
     }
-    // Same fix as on the backtest tab: don't let the TF segmented control
-    // grow past its 8-button natural width.
+    // Nine periods including monthly. Size to the buttons so 1M stays on
+    // the row instead of hiding in a horizontal scroller.
     .ide-toolbar-group--tf {
       flex: 0 0 auto;
-      min-width: 0;
-      max-width: 100%;
+      min-width: max-content;
+      max-width: none;
     }
     .ide-toolbar-group--indicator {
       flex: 1 1 240px;
@@ -6022,9 +6126,8 @@ body.dark .ide-signal-alert-modal-wrap {
   .ide-tf-seg--chart {
     display: inline-flex;
     flex-wrap: nowrap;
-    overflow-x: auto;
-    width: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible;
+    width: max-content;
     padding-bottom: 2px;
     ::v-deep .ant-radio-button-wrapper {
       flex-shrink: 0;

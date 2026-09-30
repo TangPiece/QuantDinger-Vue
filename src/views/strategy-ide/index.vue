@@ -1886,6 +1886,8 @@ export default {
       const match = source.match(/(?:^|\n)\s*#\s*timeframe\s*:\s*([A-Za-z0-9_-]+)/i)
       if (!match) return ''
       const raw = String(match[1] || '').trim()
+      // 大写 1M 是月线；先于 toLowerCase，避免变成 1 分钟。
+      if (raw === '1M') return '1M'
       const aliases = {
         '1m': '1m',
         '5m': '5m',
@@ -1894,7 +1896,10 @@ export default {
         '1h': '1H',
         '4h': '4H',
         '1d': '1D',
-        '1w': '1W'
+        '1w': '1W',
+        '1mo': '1M',
+        month: '1M',
+        monthly: '1M'
       }
       return aliases[raw.toLowerCase()] || ''
     },

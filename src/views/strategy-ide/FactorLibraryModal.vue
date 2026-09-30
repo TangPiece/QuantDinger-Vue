@@ -37,6 +37,7 @@
         <a-radio-button value="all">{{ $t('factorLibrary.all') }}</a-radio-button>
         <a-radio-button value="technical">{{ $t('factorLibrary.technical') }}</a-radio-button>
         <a-radio-button value="fundamental">{{ $t('factorLibrary.fundamental') }}</a-radio-button>
+        <a-radio-button value="level2">{{ $t('factorLibrary.level2') }}</a-radio-button>
       </a-radio-group>
       <a-select
         v-model="scopeFilter"
@@ -71,7 +72,7 @@
           >
             <span class="factor-card__top">
               <span class="factor-card__name">{{ factorName(factor) }}</span>
-              <a-tag :color="factor.factor_type === 'fundamental' ? 'purple' : 'blue'">
+              <a-tag :color="typeColor(factor.factor_type)">
                 {{ typeLabel(factor.factor_type) }}
               </a-tag>
             </span>
@@ -95,9 +96,14 @@
               <h3>{{ factorName(selectedFactor) }}</h3>
               <p>{{ factorDescription(selectedFactor) }}</p>
             </div>
-            <a-button icon="copy" :disabled="!supportsCurrent(selectedFactor)" @click="copyText(factorCall(selectedFactor))">
-              {{ $t('factorLibrary.copyCall') }}
-            </a-button>
+            <div class="factor-detail__actions">
+              <a-button v-if="showPlot" type="primary" icon="line-chart" @click="plotSelected">
+                {{ $t('factorLibrary.plotOnChart') }}
+              </a-button>
+              <a-button icon="copy" :disabled="!supportsCurrent(selectedFactor)" @click="copyText(factorCall(selectedFactor))">
+                {{ $t('factorLibrary.copyCall') }}
+              </a-button>
+            </div>
           </div>
 
           <div class="factor-detail__facts">
@@ -135,6 +141,10 @@
             <p v-if="selectedFactor.factor_type === 'fundamental'" class="factor-detail__warning">
               <a-icon type="warning" />
               {{ $t('factorLibrary.pointInTimeWarning') }}
+            </p>
+            <p v-else-if="selectedFactor.factor_type === 'level2'" class="factor-detail__warning">
+              <a-icon type="info-circle" />
+              {{ $t('factorLibrary.level2PanelNotice') }}
             </p>
           </section>
 
@@ -227,6 +237,11 @@ export default {
     assetType: {
       type: String,
       default: 'script'
+    },
+    // 指标页用来把选中因子画成副图。策略 IDE 不传，详情里就不出现这个按钮。
+    showPlot: {
+      type: Boolean,
+      default: false
     }
   },
   data () {
@@ -376,6 +391,13 @@ export default {
       this.selectedFactor = factor
       this.resetParameters(factor)
     },
+    plotSelected () {
+      if (!this.selectedFactor) return
+      this.$emit('plot', {
+        ...this.selectedFactor,
+        params: { ...this.parameterValues }
+      })
+    },
     handleListScroll (event) {
       this.listScrollTop = Math.max(0, Number(event && event.target && event.target.scrollTop) || 0)
     },
@@ -418,6 +440,12 @@ export default {
     },
     typeLabel (value) {
       return this.$t(`factorLibrary.type.${value}`)
+    },
+    // 技术蓝、基本面紫、Level2 青，避免三类标签看起来一样。
+    typeColor (value) {
+      if (value === 'fundamental') return 'purple'
+      if (value === 'level2') return 'cyan'
+      return 'blue'
     },
     categoryLabel (value) {
       return this.$t(`factorLibrary.category.${value}`)
@@ -721,6 +749,12 @@ export default {
 
 .factor-detail__heading {
   align-items: flex-start;
+}
+
+.factor-detail__actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 8px;
 }
 
 .factor-detail__heading h3 {

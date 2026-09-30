@@ -8,6 +8,10 @@ export function getFactorDetail (factorId) {
   return request({ url: `/api/factors/${factorId}`, method: 'get' })
 }
 
+export function getFactorSeries (data) {
+  return request({ url: '/api/factors/series', method: 'post', data })
+}
+
 export function runFactorResearch (data) {
   return request({ url: '/api/factors/research', method: 'post', data })
 }

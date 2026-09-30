@@ -278,6 +278,18 @@
           <span v-if="selectedRun" class="run-id">{{ mode === 'factor' ? 'FR-' : '#' }}{{ selectedRun.id || selectedRun.runId }}</span>
         </div>
 
+        <a-alert
+          v-if="!running && runError !== null"
+          class="run-error-alert"
+          type="error"
+          show-icon
+          closable
+          data-testid="backtest-run-error"
+          :message="runErrorTitle"
+          :description="runErrorDetail || undefined"
+          @close="clearRunError"
+        />
+
         <div v-if="running" class="result-running" data-testid="backtest-running" aria-live="polite">
           <div class="running-icon"><a-icon type="loading" /></div>
           <h3>{{ mode === 'factor' ? $t('strategyV2.factorResearch.runningTitle') : $t('strategyV2.backtest.runningTitle') }}</h3>
@@ -433,6 +445,8 @@ export default {
       factorResult: null,
       selectedRun: null,
       running: false,
+      // null 表示没有失败；字符串（可为空）表示结果区需要常驻展示错误
+      runError: null,
       runElapsedSeconds: 0,
       runTimer: null,
       historyLoading: false,
@@ -493,6 +507,16 @@ export default {
       if (!this.manifest || this.manifest.strategyType !== 'portfolio') return false
       const universe = this.manifest.universe || {}
       return Boolean(universe.reference) || (universe.instruments || []).length >= 3
+    },
+    runErrorTitle () {
+      return this.mode === 'factor'
+        ? this.$t('strategyV2.factorResearch.runFailed')
+        : this.$t('strategyV2.backtest.runFailed')
+    },
+    runErrorDetail () {
+      const detail = String(this.runError || '').trim()
+      if (!detail || detail === this.runErrorTitle) return ''
+      return detail
     },
     emptyResultTitle () {
       if (this.mode === 'factor') {
@@ -899,6 +923,7 @@ export default {
       await this.selectSource(sourceId, { preserveParams })
     },
     async handleModeChange () {
+      this.clearRunError()
       this.selectedRun = null
       this.historyVisible = false
       const currentId = Number(this.form.sourceId)
@@ -1090,6 +1115,18 @@ export default {
       if (this.runTimer) window.clearInterval(this.runTimer)
       this.runTimer = null
     },
+    /**
+     * 把本次运行失败原因留在结果区。
+     * 优先后端文案；没有原文时仍记下失败，页面只显示标题。
+     */
+    captureRunError (error) {
+      const detail = error && (error.backendMessage || error.message)
+      this.runError = String(detail || '').trim()
+    },
+    /** 关闭常驻错误，或在新运行、成功、切换模式时清掉 */
+    clearRunError () {
+      this.runError = null
+    },
     async run () {
       if (!this.form.sourceId) {
         this.$message.warning(this.$t('strategyV2.sourceContractRequired'))
@@ -1102,6 +1139,7 @@ export default {
       }
       if (!this.ensureBacktestRangeAllowed()) return
       this.running = true
+      this.clearRunError()
       this.result = null
       this.selectedRun = null
       this.startRunTimer()
@@ -1118,6 +1156,7 @@ export default {
           params: this.params
         })
         this.result = response.data
+        this.clearRunError()
         this.selectedRun = { id: response.data && response.data.runId }
         const billing = response.data && response.data.billing
         if (billing && typeof billing.remaining !== 'undefined') {
@@ -1125,7 +1164,7 @@ export default {
         }
         await this.loadHistory({ mode: 'portfolio', force: true })
       } catch (error) {
-        this.$message.error((error && error.backendMessage) || this.$t('strategyV2.backtest.runFailed'))
+        this.captureRunError(error)
       } finally {
         this.stopRunTimer()
         this.running = false
@@ -1143,6 +1182,7 @@ export default {
       }
       if (!this.ensureBacktestRangeAllowed()) return
       this.running = true
+      this.clearRunError()
       this.factorResult = null
       this.startRunTimer()
       try {
@@ -1158,10 +1198,11 @@ export default {
           neutralizeIndustry: this.factorForm.neutralizeIndustry
         })
         this.factorResult = response.data
+        this.clearRunError()
         this.selectedRun = { id: response.data && response.data.runId }
         await this.loadHistory({ mode: 'factor', force: true })
       } catch (error) {
-        this.$message.error((error && error.backendMessage) || this.$t('strategyV2.factorResearch.runFailed'))
+        this.captureRunError(error)
       } finally {
         this.stopRunTimer()
         this.running = false
@@ -1180,6 +1221,7 @@ export default {
         const run = response.data || {}
         this.selectedRun = run
         this.result = run.result || null
+        this.clearRunError()
         const assumptions = (run.result && run.result.executionAssumptions) || {}
         const initialCapital = run.initial_capital !== undefined && run.initial_capital !== null
           ? run.initial_capital
@@ -1231,6 +1273,7 @@ export default {
         const run = response.data || {}
         this.selectedRun = run
         this.factorResult = run.result || null
+        this.clearRunError()
         this.factorForm = {
           factorId: run.factor_id || 'momentum_20',
           groups: Number(run.groups_count || 5),
@@ -1428,6 +1471,8 @@ export default {
 .result-trustbar.is-success { border-color: #b7eb8f; background: #f6ffed; color: #3f8600; }
 .result-trustbar.is-warning { border-color: #ffe58f; background: #fffbe6; color: #ad6800; }
 .result-trustbar.is-error { border-color: #ffccc7; background: #fff2f0; color: #cf1322; }
+.run-error-alert { margin-bottom: 12px; }
+.run-error-alert /deep/ .ant-alert-description { max-height: 240px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
 .trust-badges { display: flex; flex: none; }
 .chart-card { margin-top: 14px; padding: 14px; border: 1px solid #edf0f4; border-radius: 9px; }
 .subheading > div { min-width: 0; }
@@ -1478,6 +1523,11 @@ export default {
 .theme-dark .result-trustbar.is-success { border-color: #315d22; background: #13200f; color: #73d13d; }
 .theme-dark .result-trustbar.is-warning { border-color: #664d03; background: #211b08; color: #ffc53d; }
 .theme-dark .result-trustbar.is-error { border-color: #6b2525; background: #251111; color: #ff7875; }
+.theme-dark .run-error-alert.ant-alert-error { border-color: #6b2525; background: #251111; }
+.theme-dark .run-error-alert /deep/ .ant-alert-message,
+.theme-dark .run-error-alert /deep/ .ant-alert-description,
+.theme-dark .run-error-alert /deep/ .ant-alert-icon { color: #ff7875; }
+.theme-dark .run-error-alert /deep/ .ant-alert-close-icon { color: rgba(255, 255, 255, 0.45); }
 .theme-dark .result-trustbar span { color: rgba(255, 255, 255, 0.52); }
 .theme-dark .run-card:hover, .theme-dark .run-card.active { border-color: var(--primary-color, #52c41a); background: color-mix(in srgb, var(--primary-color, #52c41a) 10%, #111); }
 .theme-dark .empty-hero-card { border-color: color-mix(in srgb, var(--primary-color, #52c41a) 22%, rgba(255, 255, 255, .11)); background: linear-gradient(145deg, color-mix(in srgb, var(--primary-color, #52c41a) 5%, #121212), #0d0f0d); box-shadow: 0 20px 54px rgba(0, 0, 0, .32); }

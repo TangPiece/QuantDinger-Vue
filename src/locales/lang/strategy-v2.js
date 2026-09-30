@@ -208,6 +208,15 @@ const locale = {
   'strategyV2.leverageNotAllowed': 'This strategy source does not allow leverage.',
   'strategyV2.leverageCryptoSwapOnly': 'Leverage is available only for crypto perpetual contracts whose strategy source explicitly allows it.',
   'strategyV2.compileFailed': 'The strategy contract could not be compiled.',
+  // API surface errors returned as strategyV2.* keys from /api/strategies/*
+  'strategyV2.llmNotConfigured': 'No LLM is configured. Open System Settings → AI/LLM, enter an API key, then try again.',
+  'strategyV2.promptRequired': 'Enter a prompt before sending.',
+  'strategyV2.codeRequired': 'Strategy code is required.',
+  'strategyV2.contractInvalid': 'The strategy contract is invalid.',
+  'strategyV2.strategyNotFound': 'Strategy not found.',
+  'strategyV2.stopBeforeDelete': 'Stop the strategy before deleting it.',
+  'strategyV2.insufficientCredits': 'Insufficient credits for this AI request.',
+  'strategyV2.connectionFailed': 'Connection failed. Please try again.',
   'strategyV2.generationInvalid': 'The generated strategy did not pass validation.',
   'strategyV2.aiDirectionModeMismatch': 'The requested trading direction does not match the generated strategy.',
   'strategyV2.aiSwapDirectionModeRequired': 'A new perpetual strategy must explicitly declare its trading direction.',
@@ -860,6 +869,15 @@ const zhCN = {
   'strategyV2.leverageNotAllowed': '该策略源码未声明允许使用杠杆。',
   'strategyV2.leverageCryptoSwapOnly': '只有策略源码明确允许杠杆的加密货币永续合约，才可由用户开启并调整杠杆倍数。',
   'strategyV2.compileFailed': '策略运行契约编译失败。',
+  // 后端 /api/strategies/* 返回的 strategyV2.* 错误码文案
+  'strategyV2.llmNotConfigured': '未配置大模型。请先在系统设置 → AI/LLM 中填写 API Key 后再试。',
+  'strategyV2.promptRequired': '请先输入提示词再发送。',
+  'strategyV2.codeRequired': '请先填写策略代码。',
+  'strategyV2.contractInvalid': '策略运行契约无效。',
+  'strategyV2.strategyNotFound': '未找到该策略。',
+  'strategyV2.stopBeforeDelete': '请先停止策略再删除。',
+  'strategyV2.insufficientCredits': '积分不足，无法完成本次 AI 请求。',
+  'strategyV2.connectionFailed': '连接失败，请稍后重试。',
   'strategyV2.generationInvalid': 'AI 生成的策略未通过校验。',
   'strategyV2.aiDirectionModeMismatch': '用户要求的交易方向与生成策略不一致。',
   'strategyV2.aiSwapDirectionModeRequired': '新建永续合约策略必须明确声明交易方向。',
@@ -969,6 +987,15 @@ const zhTW = {
   ...zhCN,
   'strategyV2.insufficientWarmupData': '歷史資料不足以完成策略預熱，請選擇支援的週期或較晚的開始日期。',
   'strategyV2.generationInvalid': 'AI 產生的策略未通過驗證。',
+  // 覆蓋簡中繼承的 API 錯誤文案（繁體）
+  'strategyV2.llmNotConfigured': '未設定大模型。請先在系統設定 → AI/LLM 中填寫 API Key 後再試。',
+  'strategyV2.promptRequired': '請先輸入提示詞再傳送。',
+  'strategyV2.codeRequired': '請先填寫策略程式碼。',
+  'strategyV2.contractInvalid': '策略執行契約無效。',
+  'strategyV2.strategyNotFound': '找不到該策略。',
+  'strategyV2.stopBeforeDelete': '請先停止策略再刪除。',
+  'strategyV2.insufficientCredits': '點數不足，無法完成本次 AI 請求。',
+  'strategyV2.connectionFailed': '連線失敗，請稍後再試。',
   'strategyV2.backtest.gridMatchedEntry': '網格配對進場價',
   'strategyV2.backtest.gridMatchedProfit': '單格淨盈虧',
   'strategyV2.backtest.accountAverageEntry': '帳戶持倉均價',
@@ -1362,6 +1389,93 @@ Object.entries(runtimeQueueLocales).forEach(([localeKey, values]) => {
 })
 Object.values(additionalAiContractErrors).forEach(messages => {
   messages['strategyV2.aiHistoryWindowClockUnsupported'] = locale['strategyV2.aiHistoryWindowClockUnsupported']
+})
+
+// 非中英语言：补齐后端返回的 strategyV2 API 错误码，避免界面显示裸 key
+const apiSurfaceErrorLocales = {
+  'ar-SA': {
+    'strategyV2.llmNotConfigured': 'لم يتم تكوين نموذج اللغة. افتح إعدادات النظام → AI/LLM وأدخل مفتاح API ثم أعد المحاولة.',
+    'strategyV2.promptRequired': 'أدخل مطالبة قبل الإرسال.',
+    'strategyV2.codeRequired': 'رمز الاستراتيجية مطلوب.',
+    'strategyV2.contractInvalid': 'عقد الاستراتيجية غير صالح.',
+    'strategyV2.strategyNotFound': 'الاستراتيجية غير موجودة.',
+    'strategyV2.stopBeforeDelete': 'أوقف الاستراتيجية قبل حذفها.',
+    'strategyV2.insufficientCredits': 'رصيد غير كافٍ لطلب الذكاء الاصطناعي هذا.',
+    'strategyV2.connectionFailed': 'فشل الاتصال. يرجى المحاولة مرة أخرى.'
+  },
+  'de-DE': {
+    'strategyV2.llmNotConfigured': 'Kein LLM konfiguriert. Öffnen Sie Systemeinstellungen → AI/LLM, tragen Sie einen API-Schlüssel ein und versuchen Sie es erneut.',
+    'strategyV2.promptRequired': 'Geben Sie vor dem Senden eine Eingabeaufforderung ein.',
+    'strategyV2.codeRequired': 'Strategicode ist erforderlich.',
+    'strategyV2.contractInvalid': 'Der Strategiekontrakt ist ungültig.',
+    'strategyV2.strategyNotFound': 'Strategie nicht gefunden.',
+    'strategyV2.stopBeforeDelete': 'Stoppen Sie die Strategie, bevor Sie sie löschen.',
+    'strategyV2.insufficientCredits': 'Unzureichende Credits für diese KI-Anfrage.',
+    'strategyV2.connectionFailed': 'Verbindung fehlgeschlagen. Bitte erneut versuchen.'
+  },
+  'fr-FR': {
+    'strategyV2.llmNotConfigured': 'Aucun LLM configuré. Ouvrez Paramètres système → AI/LLM, saisissez une clé API, puis réessayez.',
+    'strategyV2.promptRequired': 'Saisissez une invite avant d’envoyer.',
+    'strategyV2.codeRequired': 'Le code de stratégie est requis.',
+    'strategyV2.contractInvalid': 'Le contrat de stratégie est invalide.',
+    'strategyV2.strategyNotFound': 'Stratégie introuvable.',
+    'strategyV2.stopBeforeDelete': 'Arrêtez la stratégie avant de la supprimer.',
+    'strategyV2.insufficientCredits': 'Crédits insuffisants pour cette requête IA.',
+    'strategyV2.connectionFailed': 'Échec de la connexion. Veuillez réessayer.'
+  },
+  'ja-JP': {
+    'strategyV2.llmNotConfigured': 'LLM が設定されていません。システム設定 → AI/LLM で API キーを入力してから再試行してください。',
+    'strategyV2.promptRequired': '送信前にプロンプトを入力してください。',
+    'strategyV2.codeRequired': 'ストラテジーコードが必要です。',
+    'strategyV2.contractInvalid': 'ストラテジー契約が無効です。',
+    'strategyV2.strategyNotFound': 'ストラテジーが見つかりません。',
+    'strategyV2.stopBeforeDelete': '削除する前にストラテジーを停止してください。',
+    'strategyV2.insufficientCredits': 'この AI リクエストに必要なクレジットが不足しています。',
+    'strategyV2.connectionFailed': '接続に失敗しました。もう一度お試しください。'
+  },
+  'ko-KR': {
+    'strategyV2.llmNotConfigured': 'LLM이 구성되지 않았습니다. 시스템 설정 → AI/LLM에서 API 키를 입력한 뒤 다시 시도하세요.',
+    'strategyV2.promptRequired': '전송하기 전에 프롬프트를 입력하세요.',
+    'strategyV2.codeRequired': '전략 코드가 필요합니다.',
+    'strategyV2.contractInvalid': '전략 계약이 유효하지 않습니다.',
+    'strategyV2.strategyNotFound': '전략을 찾을 수 없습니다.',
+    'strategyV2.stopBeforeDelete': '삭제하기 전에 전략을 중지하세요.',
+    'strategyV2.insufficientCredits': '이 AI 요청에 필요한 크레딧이 부족합니다.',
+    'strategyV2.connectionFailed': '연결에 실패했습니다. 다시 시도하세요.'
+  },
+  'ru-RU': {
+    'strategyV2.llmNotConfigured': 'LLM не настроен. Откройте «Системные настройки» → AI/LLM, введите API-ключ и повторите попытку.',
+    'strategyV2.promptRequired': 'Введите запрос перед отправкой.',
+    'strategyV2.codeRequired': 'Требуется код стратегии.',
+    'strategyV2.contractInvalid': 'Контракт стратегии недействителен.',
+    'strategyV2.strategyNotFound': 'Стратегия не найдена.',
+    'strategyV2.stopBeforeDelete': 'Остановите стратегию перед удалением.',
+    'strategyV2.insufficientCredits': 'Недостаточно кредитов для этого AI-запроса.',
+    'strategyV2.connectionFailed': 'Ошибка соединения. Попробуйте ещё раз.'
+  },
+  'th-TH': {
+    'strategyV2.llmNotConfigured': 'ยังไม่ได้ตั้งค่า LLM โปรดเปิดการตั้งค่าระบบ → AI/LLM กรอก API Key แล้วลองอีกครั้ง',
+    'strategyV2.promptRequired': 'กรุณาใส่พรอมต์ก่อนส่ง',
+    'strategyV2.codeRequired': 'ต้องมีโค้ดกลยุทธ์',
+    'strategyV2.contractInvalid': 'สัญญาของกลยุทธ์ไม่ถูกต้อง',
+    'strategyV2.strategyNotFound': 'ไม่พบกลยุทธ์',
+    'strategyV2.stopBeforeDelete': 'โปรดหยุดกลยุทธ์ก่อนลบ',
+    'strategyV2.insufficientCredits': 'เครดิตไม่เพียงพอสำหรับคำขอ AI นี้',
+    'strategyV2.connectionFailed': 'เชื่อมต่อไม่สำเร็จ กรุณาลองอีกครั้ง'
+  },
+  'vi-VN': {
+    'strategyV2.llmNotConfigured': 'Chưa cấu hình LLM. Mở Cài đặt hệ thống → AI/LLM, nhập API Key rồi thử lại.',
+    'strategyV2.promptRequired': 'Nhập lời nhắc trước khi gửi.',
+    'strategyV2.codeRequired': 'Cần có mã chiến lược.',
+    'strategyV2.contractInvalid': 'Hợp đồng chiến lược không hợp lệ.',
+    'strategyV2.strategyNotFound': 'Không tìm thấy chiến lược.',
+    'strategyV2.stopBeforeDelete': 'Hãy dừng chiến lược trước khi xóa.',
+    'strategyV2.insufficientCredits': 'Không đủ tín dụng cho yêu cầu AI này.',
+    'strategyV2.connectionFailed': 'Kết nối thất bại. Vui lòng thử lại.'
+  }
+}
+Object.entries(apiSurfaceErrorLocales).forEach(([localeKey, messages]) => {
+  Object.assign(additionalAiContractErrors[localeKey], messages)
 })
 
 export default {

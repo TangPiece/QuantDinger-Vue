@@ -399,7 +399,7 @@ import {
 import { ratioPercentInputFormatter, ratioPercentInputParser } from '@/utils/numberFormat'
 
 const DEFAULT_CHANNELS = ['browser', 'email']
-const RUNTIME_TIMEFRAMES = ['1m', '5m', '15m', '30m', '1H', '4H', '1D', '1W']
+const RUNTIME_TIMEFRAMES = ['1m', '5m', '15m', '30m', '1H', '4H', '1D', '1W', '1M']
 const DIRECTION_MODE_ALIASES = {
   long: 'long_only',
   longonly: 'long_only',
