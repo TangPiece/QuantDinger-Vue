@@ -665,7 +665,10 @@ export default {
       return this.isCryptoMarket || this.isStockMarket
     },
     priceMarketParam () {
-      return this.isStockMarket ? 'USStock' : 'Crypto'
+      // 报价和搜索沿用当前市场。旧别名 Stock/Stocks 仍视为美股；A 股等不能再被改写成 Crypto。
+      const market = this.normalizedMarket
+      if (market === 'Stock' || market === 'Stocks') return 'USStock'
+      return market
     },
     orderCurrency () {
       return this.isStockMarket ? 'USD' : 'USDT'

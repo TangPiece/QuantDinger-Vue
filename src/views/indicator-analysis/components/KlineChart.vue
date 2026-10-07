@@ -2455,6 +2455,8 @@ registerOverlay({
               chartRef.value.applyNewData(validData)
 
               setTimeout(() => {
+                // 换标后旧 load 的定时器不得再触发指标重算。
+                if (generation !== loadGeneration) return
                 if (chartRef.value) {
                   maybeUpdateIndicators(true)
                 }
@@ -4357,7 +4359,25 @@ registerOverlay({
 
             try {
               if (indicator.calculate && typeof indicator.calculate === 'function') {
-                const result = await indicator.calculate(internalData, resolvePythonIndicatorParams(indicator))
+                // 与当前 K 线 props 同源，避免切标后 series 仍带旧 symbol。
+                const chartCtx = {
+                  market: props.market,
+                  symbol: props.symbol,
+                  timeframe: props.timeframe
+                }
+                const startedSymbol = chartCtx.symbol
+                const result = await indicator.calculate(
+                  internalData,
+                  resolvePythonIndicatorParams(indicator),
+                  chartCtx
+                )
+                // 在途重算过期则丢弃，交给更新的一轮 updateIndicators。
+                if (renderCycleId !== indicatorRenderSeq) {
+                  return
+                }
+                if (indicator.factorChart && props.symbol !== startedSymbol) {
+                  continue
+                }
 
                 const renderResult = normalizeIndicatorRenderResult(result, internalData)
                 const allPlots = [...renderResult.plots]
@@ -5071,9 +5091,12 @@ registerOverlay({
     })
 
     watch(() => props.activeIndicators, (newVal, oldVal) => {
-      if (chartRef.value && klineData.value.length > 0) {
+      // K 线仍在换标加载时，先排队，避免用旧 bars 立刻打 series。
+      if (loading.value) {
+        indicatorsUpdateQueued.value = true
+      } else if (chartRef.value && klineData.value.length > 0) {
         nextTick(() => {
-          if (chartRef.value) {
+          if (chartRef.value && !loading.value) {
             updateIndicators()
           }
         })

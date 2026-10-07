@@ -2681,18 +2681,25 @@ export default {
         return { ...item, name: label, shortName: label }
       })
     },
+    /**
+     * 换标的/周期后重建因子副图条目，迫使 K 线加载后重新走 calculate（读最新 this.symbol）。
+     */
+    remountFactorChartForContext () {
+      const current = this.activeIndicators.find(item => item && item.factorChart && item.factorSource)
+      if (!current || !current.factorSource) return
+      this.plotFactorOnChart(current.factorSource)
+    },
     plotFactorOnChart (factor) {
       // 同一时间只留一条因子副图。计算走后端序列，画线仍用指标 plots。
       if (!factor || !factor.factor_id) return
       this.factorLibraryVisible = false
-      const market = this.market
-      const symbol = this.symbol
-      const timeframe = this.timeframe
       const params = factor.params && typeof factor.params === 'object' ? { ...factor.params } : {}
       let notified = false
+      // instanceId 带上标的上下文，换票后图表层能区分新实例。
+      const contextInstanceId = `factor-chart:${this.market}:${this.symbol}:${this.timeframe}`
       const indicator = {
         id: 'factor-chart',
-        instanceId: 'factor-chart',
+        instanceId: contextInstanceId,
         type: 'python',
         factorChart: true,
         factorSource: factor,
@@ -2702,8 +2709,17 @@ export default {
         visible: true,
         params,
         style: { color: '#22D3EE', lineWidth: 2 },
-        calculate: async (klineData) => {
+        /**
+         * 优先用 KlineChart 传入的 ctx（与当前 K 线 props 同源），避免切标竞态。
+         * @param {Array} klineData
+         * @param {Object} [_params]
+         * @param {{ market?: string, symbol?: string, timeframe?: string }} [ctx]
+         */
+        calculate: async (klineData, _params, ctx) => {
           const label = this.factorDisplayName(factor)
+          const market = (ctx && ctx.market) || this.market
+          const symbol = (ctx && ctx.symbol) || this.symbol
+          const timeframe = (ctx && ctx.timeframe) || this.timeframe
           const bars = (Array.isArray(klineData) ? klineData : []).map(item => ({
             // 对齐后的 timestamp 是 UTC 日界。Level2 要用交易所原始时间才能对上交易日。
             time: item.sourceTime != null ? item.sourceTime : (item.timestamp || item.time),
@@ -4000,6 +4016,8 @@ export default {
       }
     },
     market () {
+      // 换市场后重建因子副图，避免 series 仍带旧 market。
+      this.remountFactorChartForContext()
       this.schedulePersistIdeUiState()
     },
     cryptoExchangeId () {
@@ -4058,10 +4076,13 @@ export default {
     },
     symbol () {
       this.qtSymbol = this.symbol
+      // 换标的后重建 factor-chart 条目，强制副图按新 symbol 重新 calculate。
+      this.remountFactorChartForContext()
       this.ensureChartReady()
       this.schedulePersistIdeUiState()
     },
     timeframe () {
+      this.remountFactorChartForContext()
       this.ensureChartReady()
       this.schedulePersistIdeUiState()
     },
